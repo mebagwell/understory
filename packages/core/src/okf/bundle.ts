@@ -123,7 +123,7 @@ export class Bundle {
 
   /**
    * Targeted update: merge frontmatter keys (null deletes a key) and/or
-   * replace the content under one top-level "# Section" heading.
+   * replace the content under one heading (any level) "# Section".
    */
   async patchConcept(
     bundlePath: string,
