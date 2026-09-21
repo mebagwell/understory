@@ -157,10 +157,16 @@ describe("replaceSection (#34)", () => {
     expect(out).toBe("# Title\n\nIntro.\n\n## Goals\n\nnew goals\n\n## Notes\n\nn1\n");
   });
 
-  it("ends the section at the next same-or-higher level heading, keeping nested headings", () => {
+  it("replaces the full section, including nested subsections, up to the next same-or-higher heading", () => {
     const body = "## Goals\n\na\n\n### Detail\n\nd\n\n## Notes\n\nn\n";
     const out = replaceSection(body, "Goals", "fresh");
     expect(out).toBe("## Goals\n\nfresh\n\n## Notes\n\nn\n");
+  });
+
+  it("matches headings written with an ATX closing hash sequence", () => {
+    const body = "# Title\n\nintro\n\n## Goals ##\n\nold\n\n## Notes\n\nn\n";
+    const out = replaceSection(body, "## Goals", "new goals");
+    expect(out).toBe("# Title\n\nintro\n\n## Goals ##\n\nnew goals\n\n## Notes\n\nn\n");
   });
 
   it("strips a duplicated heading line at the top of the replacement content", () => {
@@ -168,6 +174,12 @@ describe("replaceSection (#34)", () => {
     const out = replaceSection(body, "## Gotchas", "## Gotchas\n\n- fresh gotcha");
     expect(out).toBe("# Title\n\n## Gotchas\n\n- fresh gotcha\n");
     expect(out.split("\n").filter((l) => l.trim() === "## Gotchas").length).toBe(1);
+  });
+
+  it("strips a duplicated closing-hash heading line at the top of the replacement content", () => {
+    const body = "# Title\n\n## Gotchas ##\n\nold\n";
+    const out = replaceSection(body, "## Gotchas", "## Gotchas ##\n\n- fresh gotcha");
+    expect(out).toBe("# Title\n\n## Gotchas ##\n\n- fresh gotcha\n");
   });
 
   it("throws on ambiguous multi-match instead of editing the first hit", () => {

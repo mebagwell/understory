@@ -253,9 +253,14 @@ export function replaceSection(body: string, heading: string, content: string): 
   const lines = body.split("\n");
   const isHeading = (line: string) => /^#{1,6}\s+/.test(line);
   const level = (line: string) => line.match(/^#+/)![0].length;
+  // Title without the leading hashes; an optional ATX closing sequence is
+  // stripped only when preceded by whitespace (CommonMark §4.2 — "Goals##"
+  // is the literal title "Goals##").
+  const headingTitle = (line: string) =>
+    line.replace(/^#{1,6}\s+/, "").trim().replace(/\s+#+$/, "");
   const matches: number[] = [];
   for (let i = 0; i < lines.length; i++) {
-    if (isHeading(lines[i]) && lines[i].replace(/^#{1,6}\s+/, "").trim() === normalized) {
+    if (isHeading(lines[i]) && headingTitle(lines[i]) === normalized) {
       matches.push(i);
     }
   }
@@ -269,11 +274,7 @@ export function replaceSection(body: string, heading: string, content: string): 
     // Normalize: strip a leading content line that duplicates the target heading
     const cLines = content.split("\n");
     const fi = cLines.findIndex((l) => l.trim().length > 0);
-    if (
-      fi >= 0 &&
-      /^#{1,6}\s+/.test(cLines[fi]) &&
-      cLines[fi].replace(/^#{1,6}\s+/, "").trim() === normalized
-    ) {
+    if (fi >= 0 && /^#{1,6}\s+/.test(cLines[fi]) && headingTitle(cLines[fi]) === normalized) {
       content = cLines.slice(fi + 1).join("\n");
     }
   }

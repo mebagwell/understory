@@ -115,7 +115,7 @@ export function buildWriteTools(kb: KnowledgeBase, filesChanged: Set<string>, tr
             heading: z
               .string()
               .min(1)
-              .describe("Top-level heading name, e.g. 'Schema'. Must be non-empty — to replace the whole body use replace_body instead."),
+              .describe("Heading name (any level, # through ######), e.g. 'Schema'. Must be non-empty — to replace the whole body use replace_body instead."),
             content: z.string().describe("New content for that section"),
           })
           .optional(),
