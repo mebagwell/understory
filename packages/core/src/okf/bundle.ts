@@ -246,21 +246,45 @@ export class Bundle {
   }
 }
 
-/** Replace the content under a top-level heading; append the section if absent. */
+/** Replace the content under a heading of any level; append a top-level
+ * section if absent; throw on ambiguous (multiple) matches. */
 export function replaceSection(body: string, heading: string, content: string): string {
   const normalized = heading.replace(/^#+\s*/, "");
   const lines = body.split("\n");
-  const isHeading = (line: string) => /^#\s+/.test(line);
-  const start = lines.findIndex(
-    (line) => isHeading(line) && line.replace(/^#\s+/, "").trim() === normalized
-  );
+  const isHeading = (line: string) => /^#{1,6}\s+/.test(line);
+  const level = (line: string) => line.match(/^#+/)![0].length;
+  const matches: number[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (isHeading(lines[i]) && lines[i].replace(/^#{1,6}\s+/, "").trim() === normalized) {
+      matches.push(i);
+    }
+  }
+  if (matches.length > 1) {
+    throw new Error(
+      `replace_section: section "${normalized}" found ${matches.length} times — resolve duplicates via replace_body first.`
+    );
+  }
+  const start = matches.length ? matches[0] : -1;
+  if (start !== -1) {
+    // Normalize: strip a leading content line that duplicates the target heading
+    const cLines = content.split("\n");
+    const fi = cLines.findIndex((l) => l.trim().length > 0);
+    if (
+      fi >= 0 &&
+      /^#{1,6}\s+/.test(cLines[fi]) &&
+      cLines[fi].replace(/^#{1,6}\s+/, "").trim() === normalized
+    ) {
+      content = cLines.slice(fi + 1).join("\n");
+    }
+  }
   if (start === -1) {
     const suffix = body.trim().length > 0 ? "\n\n" : "";
     return `${body.trimEnd()}${suffix}# ${normalized}\n\n${content.trim()}\n`;
   }
+  const matchedLevel = level(lines[start]);
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i++) {
-    if (isHeading(lines[i])) {
+    if (isHeading(lines[i]) && level(lines[i]) <= matchedLevel) {
       end = i;
       break;
     }

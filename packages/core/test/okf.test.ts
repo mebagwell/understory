@@ -150,6 +150,37 @@ describe("patch", () => {
   });
 });
 
+describe("replaceSection (#34)", () => {
+  it("replaces under a ## heading instead of appending a duplicate section", () => {
+    const body = "# Title\n\nIntro.\n\n## Goals\n\nold\n\n## Notes\n\nn1\n";
+    const out = replaceSection(body, "## Goals", "new goals");
+    expect(out).toBe("# Title\n\nIntro.\n\n## Goals\n\nnew goals\n\n## Notes\n\nn1\n");
+  });
+
+  it("ends the section at the next same-or-higher level heading, keeping nested headings", () => {
+    const body = "## Goals\n\na\n\n### Detail\n\nd\n\n## Notes\n\nn\n";
+    const out = replaceSection(body, "Goals", "fresh");
+    expect(out).toBe("## Goals\n\nfresh\n\n## Notes\n\nn\n");
+  });
+
+  it("strips a duplicated heading line at the top of the replacement content", () => {
+    const body = "# Title\n\n## Gotchas\n\nold\n";
+    const out = replaceSection(body, "## Gotchas", "## Gotchas\n\n- fresh gotcha");
+    expect(out).toBe("# Title\n\n## Gotchas\n\n- fresh gotcha\n");
+    expect(out.split("\n").filter((l) => l.trim() === "## Gotchas").length).toBe(1);
+  });
+
+  it("throws on ambiguous multi-match instead of editing the first hit", () => {
+    const body = "## A\n\nx\n\n## B\n\nx\n\n## A\n\ny\n";
+    expect(() => replaceSection(body, "A", "z")).toThrow(/found 2 times/);
+  });
+
+  it("still appends a top-level section when absent", () => {
+    const out = replaceSection("body only", "Citations", "[1]");
+    expect(out).toBe("body only\n\n# Citations\n\n[1]\n");
+  });
+});
+
 describe("search", () => {
   beforeEach(async () => {
     await kb.writeConcept(
