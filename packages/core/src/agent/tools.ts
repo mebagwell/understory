@@ -127,7 +127,7 @@ export function buildWriteTools(kb: KnowledgeBase, filesChanged: Set<string>, tr
     }),
     patch_concept: tool({
       description:
-        "Targeted update of an existing concept: merge frontmatter keys (null deletes a key) and/or replace one top-level '# Section' body section. Prefer this over write_concept for small edits.",
+        "Targeted update of an existing concept: merge frontmatter keys (null deletes a key) and/or replace one heading body section (any level, H1-H6). Prefer this over write_concept for small edits.",
       inputSchema: z.object({
         path: conceptPath,
         frontmatter: frontmatterPatchSchema.optional(),
@@ -136,7 +136,7 @@ export function buildWriteTools(kb: KnowledgeBase, filesChanged: Set<string>, tr
             heading: z
               .string()
               .min(1)
-              .describe("Top-level heading name, e.g. 'Schema'. Must be non-empty — to replace the whole body use replace_body instead."),
+              .describe("Heading name (any level, # through ######), e.g. 'Schema'. Must be non-empty — to replace the whole body use replace_body instead."),
             content: z.string().describe("New content for that section"),
           })
           .optional(),
