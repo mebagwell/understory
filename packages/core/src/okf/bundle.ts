@@ -294,7 +294,9 @@ export class Bundle {
 export function replaceSection(body: string, heading: string, content: string): string {
   const normalized = heading.replace(/^#+\s*/, "");
   const lines = body.split("\n");
-  const isHeading = (line: string) => /^#{1,6}\s+/.test(line);
+  // A "# comment" inside a fenced code block is code, not a heading.
+  const fenced = fencedLines(lines);
+  const isHeading = (i: number) => !fenced[i] && /^#{1,6}\s+/.test(lines[i]);
   const level = (line: string) => line.match(/^#+/)![0].length;
   // Title without the leading hashes; an optional ATX closing sequence is
   // stripped only when preceded by whitespace (CommonMark §4.2 — "Goals##"
@@ -303,7 +305,7 @@ export function replaceSection(body: string, heading: string, content: string): 
     line.replace(/^#{1,6}\s+/, "").trim().replace(/\s+#+$/, "");
   const matches: number[] = [];
   for (let i = 0; i < lines.length; i++) {
-    if (isHeading(lines[i]) && headingTitle(lines[i]) === normalized) {
+    if (isHeading(i) && headingTitle(lines[i]) === normalized) {
       matches.push(i);
     }
   }
@@ -328,7 +330,7 @@ export function replaceSection(body: string, heading: string, content: string): 
   const matchedLevel = level(lines[start]);
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i++) {
-    if (isHeading(lines[i]) && level(lines[i]) <= matchedLevel) {
+    if (isHeading(i) && level(lines[i]) <= matchedLevel) {
       end = i;
       break;
     }
@@ -336,4 +338,21 @@ export function replaceSection(body: string, heading: string, content: string): 
   const before = lines.slice(0, start + 1).join("\n");
   const after = lines.slice(end).join("\n");
   return `${before}\n\n${content.trim()}\n${after ? "\n" + after : ""}`;
+}
+
+/** Marks the lines that sit inside a fenced code block, the fence lines included. */
+function fencedLines(lines: string[]): boolean[] {
+  let open: { char: string; length: number } | null = null;
+  return lines.map((line) => {
+    const fence = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if (!open) {
+      if (!fence) return false;
+      open = { char: fence[1][0], length: fence[1].length };
+      return true;
+    }
+    const closes =
+      fence !== null && fence[1][0] === open.char && fence[1].length >= open.length && fence[2].trim() === "";
+    if (closes) open = null;
+    return true;
+  });
 }

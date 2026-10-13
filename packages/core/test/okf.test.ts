@@ -273,6 +273,13 @@ describe("replaceSection (#34)", () => {
     expect(() => replaceSection(body, "A", "z")).toThrow(/found 2 times/);
   });
 
+  it("does not read a comment inside a fenced code block as a heading", () => {
+    const fence = "```";
+    const body = `# T\n\n## Setup\n\n${fence}bash\n# install deps\nnpm i\n${fence}\n\ntail\n\n## Run\n\n${fence}bash\n# Setup\nmake\n${fence}\n`;
+    const out = replaceSection(body, "Setup", "new setup");
+    expect(out).toBe(`# T\n\n## Setup\n\nnew setup\n\n## Run\n\n${fence}bash\n# Setup\nmake\n${fence}\n`);
+  });
+
   it("still appends a top-level section when absent", () => {
     const out = replaceSection("body only", "Citations", "[1]");
     expect(out).toBe("body only\n\n# Citations\n\n[1]\n");
