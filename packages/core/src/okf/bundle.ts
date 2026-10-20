@@ -316,8 +316,8 @@ export function topLevelHeadings(body: string): string[] {
   for (let i = 0; i < lines.length; i++) {
     if (fenced[i]) continue;
     // H1 only, up to 3 leading spaces
-    const m = lines[i].match(/^ {0,3}#\s+(.*\S)\s*$/);
-    if (m) names.push(m[1].replace(/\s+#+$/, "").trim());
+    const m = lines[i].match(/^ {0,3}#(?:\s+(.*\S)\s*)?\s*$/);
+    if (m) names.push((m[1] ?? "").replace(/\s+#+$/, "").trim());
   }
   return names;
 }
@@ -337,14 +337,14 @@ export function replaceSection(body: string, heading: string, content: string): 
   // A "# comment" inside a fenced code block is code, not a heading.
   const fenced = fencedLines(lines);
   // Up to 3 leading spaces allowed before # per CommonMark §4.2
-  const isHeading = (i: number) => !fenced[i] && /^ {0,3}#{1,6}\s+/.test(lines[i]);
+  const isHeading = (i: number) => !fenced[i] && /^ {0,3}#{1,6}(?:\s+|$)/.test(lines[i]);
   // Capture the hash count including any leading spaces
   const level = (line: string) => line.match(/^ {0,3}(#+)/)![1].length;
   // Title without the leading hashes (with up to 3 leading spaces stripped);
   // an optional ATX closing sequence is stripped only when preceded by whitespace
   // (CommonMark §4.2 — "Goals##" is the literal title "Goals##").
   const headingTitle = (line: string) =>
-    line.replace(/^ {0,3}#{1,6}\s+/, "").trim().replace(/\s+#+$/, "");
+    line.replace(/^ {0,3}#{1,6}(?:\s+|$)/, "").trim().replace(/\s+#+$/, "");
   const matches: number[] = [];
   for (let i = 0; i < lines.length; i++) {
     if (isHeading(i) && headingTitle(lines[i]) === normalizedHeading) {
@@ -363,7 +363,7 @@ export function replaceSection(body: string, heading: string, content: string): 
   // the section header when the model re-emits "# Heading" as its first line.
   const cLines = content.split("\n");
   const fi = cLines.findIndex((l) => l.trim().length > 0);
-  if (fi >= 0 && /^ {0,3}#{1,6}\s+/.test(cLines[fi]) && headingTitle(cLines[fi]) === normalizedHeading) {
+  if (fi >= 0 && /^ {0,3}#{1,6}(?:\s+|$)/.test(cLines[fi]) && headingTitle(cLines[fi]) === normalizedHeading) {
     content = cLines.slice(fi + 1).join("\n");
   }
 

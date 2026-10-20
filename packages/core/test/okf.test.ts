@@ -285,6 +285,88 @@ describe("replaceSection (#34)", () => {
     const out = replaceSection("body only", "Citations", "[1]");
     expect(out).toBe("body only\n\n# Citations\n\n[1]\n");
   });
+
+  describe("bare H1 (CommonMark §4.2)", () => {
+    it("replacement does NOT delete sibling content when bare H1 follows replaced section", () => {
+      const body = "# Alpha\n\nold alpha\n\n#\n\nsibling content";
+      const out = replaceSection(body, "Alpha", "new alpha");
+      expect(out).toContain("new alpha");
+      expect(out).not.toContain("old alpha");
+      expect(out).toContain("#");
+      expect(out).toContain("sibling content");
+    });
+
+    it("replaces content under a bare H1 matching by empty string", () => {
+      const body = "#\n\nold content\n\n# Other\n\nother content";
+      const out = replaceSection(body, "", "new content");
+      expect(out).toContain("new content");
+      expect(out).not.toContain("old content");
+      expect(out).toContain("# Other");
+      expect(out).toContain("other content");
+    });
+
+    it("appends correctly with empty title argument", () => {
+      const out = replaceSection("body", "", "content");
+      expect(out).toContain("body");
+      expect(out).toContain("content");
+      // The body contains "# " as the heading line
+      expect(out).toContain("# ");
+    });
+
+    it("strips a duplicated bare H1 line at the top of replacement content", () => {
+      const body = "# Title\n\nold\n";
+      const out = replaceSection(body, "Title", "#\n\ncontent");
+      expect(out).not.toContain("old");
+      expect(out).toContain("content");
+      // Exactly one bare H1 line
+      expect(out.split("\n").filter((l) => l.trim() === "#").length).toBe(1);
+    });
+  });
+
+  describe("bare H1 (CommonMark §4.2)", () => {
+    it("writeConcept with body containing two identical bare H1s => rejects DUPLICATE_SECTION", async () => {
+      // Both are bare H1s (empty title), after normalization they are equal
+      await expect(
+        kb.writeConcept(
+          "/dup.md",
+          { type: "T", title: "Dup" },
+          "#\n\nfirst\n\n#\n\nsecond",
+          "add"
+        )
+      ).rejects.toMatchObject({ code: "DUPLICATE_SECTION" });
+      await expect(fs.access(path.join(root, "dup.md"))).rejects.toThrow();
+    });
+
+    it("writeConcept with one bare H1 and one named H1 -> allowed (different titles)", async () => {
+      // "" and "Other" are different normalized titles
+      await kb.writeConcept(
+        "/mixed.md",
+        { type: "T", title: "Mixed" },
+        "#\n\nfirst\n\n# Other\n\nsecond",
+        "add"
+      );
+    });
+
+    it("append payload containing bare H1 -> rejects MULTI_SECTION_CONTENT", async () => {
+      await kb.writeConcept(
+        "/doc.md",
+        { type: "T", title: "Doc" },
+        "intro",
+        "add"
+      );
+      const original = await kb.readConcept("/doc.md");
+      // This should fail because content contains a top-level heading
+      await expect(
+        kb.patchConcept(
+          "/doc.md",
+          { replaceSection: { heading: "Missing", content: "#\n\nbar\n" } },
+          "try append"
+        )
+      ).rejects.toMatchObject({ code: "MULTI_SECTION_CONTENT" });
+      const current = await kb.readConcept("/doc.md");
+      expect(current.body).toBe(original.body);
+    });
+  });
 });
 
 describe("search", () => {
