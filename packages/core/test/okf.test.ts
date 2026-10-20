@@ -649,6 +649,16 @@ describe("duplicate-section write guards", () => {
         expect(out).toBe("# Title\n\n ## Goals\n\nnew\n");
         expect(out.split("\n").filter((l) => l.trim() === "## Goals").length).toBe(1);
       });
+
+      it("does NOT delete sibling H1 when indented H1 follows non-indented H1", () => {
+        const body = "# Alpha\n\nalpha content\n\n   # Beta\n\n_beta content\n";
+        const out = replaceSection(body, "Alpha", "new alpha");
+        // Beta and its content must survive; Beta is a top-level section, NOT a subsection of Alpha
+        expect(out).not.toContain("alpha content");
+        expect(out).toContain("new alpha");
+        expect(out).toContain("_beta content");
+        expect(out).toContain("   # Beta");
+      });
     });
   });
 });

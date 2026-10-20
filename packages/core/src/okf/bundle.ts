@@ -339,7 +339,7 @@ export function replaceSection(body: string, heading: string, content: string): 
   // Up to 3 leading spaces allowed before # per CommonMark §4.2
   const isHeading = (i: number) => !fenced[i] && /^ {0,3}#{1,6}\s+/.test(lines[i]);
   // Capture the hash count including any leading spaces
-  const level = (line: string) => line.match(/^ {0,3}(#+)/)![0].length;
+  const level = (line: string) => line.match(/^ {0,3}(#+)/)![1].length;
   // Title without the leading hashes (with up to 3 leading spaces stripped);
   // an optional ATX closing sequence is stripped only when preceded by whitespace
   // (CommonMark §4.2 — "Goals##" is the literal title "Goals##").
