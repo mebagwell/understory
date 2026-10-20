@@ -594,4 +594,61 @@ describe("duplicate-section write guards", () => {
       expect(topLevelHeadings("# Section ##")).toEqual(["Section"]);
     });
   });
+
+  describe("commonmark §4.2: up to three leading spaces before heading", () => {
+    describe("topLevelHeadings", () => {
+      it("rejects indented H1 with 1 space (guard false-negative case)", () => {
+        const body = "# Setup\n\ncontent\n\n # Setup\n\ndupe\n";
+        const names = topLevelHeadings(body);
+        expect(names).toEqual(["Setup", "Setup"]);
+        expect(new Set(names.map((s) => s.toLowerCase()))).toEqual(new Set(["setup"]));
+      });
+
+      it("rejects indented H1 with 3 spaces (guard false-negative case)", () => {
+        const body = "# Setup\n\ncontent\n\n   # Setup\n\ndupe\n";
+        expect(topLevelHeadings(body)).toEqual(["Setup", "Setup"]);
+      });
+
+      it("does NOT treat 4-space indented # as a top-level heading", () => {
+        const body = "# Setup\n\n    # Not a heading\n\ncontent\n";
+        expect(topLevelHeadings(body)).toEqual(["Setup"]);
+      });
+
+      it("indented H1 inside a fenced code block is still skipped", () => {
+        const body = "# Title\n\n`\`\`bash\n    # indented in fence\ncli\n`\`\`\n\n# Other\n\nbody\n";
+        expect(topLevelHeadings(body)).toEqual(["Title", "Other"]);
+      });
+    });
+
+    describe("replaceSection", () => {
+      it("replaces a section whose heading is indented with 1 space (no silent-append)", () => {
+        const body = "# Title\n\nIntro\n\n ## Goals\n\nold\n\n## Notes\n\nn\n";
+        const out = replaceSection(body, "Goals", "new goals");
+        expect(out).toBe("# Title\n\nIntro\n\n ## Goals\n\nnew goals\n\n## Notes\n\nn\n");
+      });
+
+      it("replaces a section whose heading is indented with 3 spaces (no silent-append)", () => {
+        const body = "# Title\n\nIntro\n\n   ## Goals\n\nold\n\n## Notes\n\nn\n";
+        const out = replaceSection(body, "Goals", "new goals");
+        expect(out).toBe("# Title\n\nIntro\n\n   ## Goals\n\nnew goals\n\n## Notes\n\nn\n");
+      });
+
+      it("appends correctly when an indented H1 (1 space) is the target and absent", () => {
+        const out = replaceSection("body only", " Goals", "content");
+        expect(out).toBe("body only\n\n# Goals\n\ncontent\n");
+      });
+
+      it("appends correctly when an indented H1 (3 spaces) is the target and absent", () => {
+        const out = replaceSection("body only", "   Goals", "content");
+        expect(out).toBe("body only\n\n# Goals\n\ncontent\n");
+      });
+
+      it("handles existing indented heading with duplicate heuristic (no line duplication)", () => {
+        const body = "# Title\n\n ## Goals\n\nold\n";
+        const out = replaceSection(body, "Goals", " ## Goals\n\nnew\n");
+        expect(out).toBe("# Title\n\n ## Goals\n\nnew\n");
+        expect(out.split("\n").filter((l) => l.trim() === "## Goals").length).toBe(1);
+      });
+    });
+  });
 });

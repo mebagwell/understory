@@ -307,6 +307,7 @@ export class Bundle {
 /**
  * Top-level (H1) section names in a markdown body, skipping fenced code blocks.
  * Used to reject writes that duplicate a top-level section.
+ * Allows up to three leading spaces before # per CommonMark §4.2.
  */
 export function topLevelHeadings(body: string): string[] {
   const names: string[] = [];
@@ -314,7 +315,8 @@ export function topLevelHeadings(body: string): string[] {
   const fenced = fencedLines(lines);
   for (let i = 0; i < lines.length; i++) {
     if (fenced[i]) continue;
-    const m = lines[i].match(/^#\s+(.*\S)\s*$/);
+    // H1 only, up to 3 leading spaces
+    const m = lines[i].match(/^ {0,3}#\s+(.*\S)\s*$/);
     if (m) names.push(m[1].replace(/\s+#+$/, "").trim());
   }
   return names;
@@ -322,28 +324,36 @@ export function topLevelHeadings(body: string): string[] {
 
 /** Replace the content under a heading of any level; append a top-level
  * section if absent; throw on ambiguous (multiple) matches or if append
- * payload contains extra top-level sections. */
+ * payload contains extra top-level sections.
+ * Permits up to three leading spaces before # per CommonMark §4.2. */
 export function replaceSection(body: string, heading: string, content: string): string {
-  const normalized = heading.replace(/^#+\s*/, "");
+  // Normalize: strip leading spaces (up to 3) and hashes. The heading argument may have
+  // leading spaces (e.g., " Goals") or hashes (e.g., "## Goals") but the stored
+  // normalized form should be the plain title without spacing/hashes.
+  const normalized = heading.replace(/^ {0,3}#+\s*/, "");
+  // Also strip any remaining leading spaces after hash removal (e.g., " Goals" -> "Goals")
+  const normalizedHeading = normalized.replace(/^ +/, "");
   const lines = body.split("\n");
   // A "# comment" inside a fenced code block is code, not a heading.
   const fenced = fencedLines(lines);
-  const isHeading = (i: number) => !fenced[i] && /^#{1,6}\s+/.test(lines[i]);
-  const level = (line: string) => line.match(/^#+/)![0].length;
-  // Title without the leading hashes; an optional ATX closing sequence is
-  // stripped only when preceded by whitespace (CommonMark §4.2 — "Goals##"
-  // is the literal title "Goals##").
+  // Up to 3 leading spaces allowed before # per CommonMark §4.2
+  const isHeading = (i: number) => !fenced[i] && /^ {0,3}#{1,6}\s+/.test(lines[i]);
+  // Capture the hash count including any leading spaces
+  const level = (line: string) => line.match(/^ {0,3}(#+)/)![0].length;
+  // Title without the leading hashes (with up to 3 leading spaces stripped);
+  // an optional ATX closing sequence is stripped only when preceded by whitespace
+  // (CommonMark §4.2 — "Goals##" is the literal title "Goals##").
   const headingTitle = (line: string) =>
-    line.replace(/^#{1,6}\s+/, "").trim().replace(/\s+#+$/, "");
+    line.replace(/^ {0,3}#{1,6}\s+/, "").trim().replace(/\s+#+$/, "");
   const matches: number[] = [];
   for (let i = 0; i < lines.length; i++) {
-    if (isHeading(i) && headingTitle(lines[i]) === normalized) {
+    if (isHeading(i) && headingTitle(lines[i]) === normalizedHeading) {
       matches.push(i);
     }
   }
   if (matches.length > 1) {
     throw new Error(
-      `replace_section: section "${normalized}" found ${matches.length} times — resolve duplicates via replace_body first.`
+      `replace_section: section "${normalizedHeading}" found ${matches.length} times — resolve duplicates via replace_body first.`
     );
   }
   const start = matches.length ? matches[0] : -1;
@@ -353,7 +363,7 @@ export function replaceSection(body: string, heading: string, content: string): 
   // the section header when the model re-emits "# Heading" as its first line.
   const cLines = content.split("\n");
   const fi = cLines.findIndex((l) => l.trim().length > 0);
-  if (fi >= 0 && /^#{1,6}\s+/.test(cLines[fi]) && headingTitle(cLines[fi]) === normalized) {
+  if (fi >= 0 && /^ {0,3}#{1,6}\s+/.test(cLines[fi]) && headingTitle(cLines[fi]) === normalizedHeading) {
     content = cLines.slice(fi + 1).join("\n");
   }
 
@@ -363,12 +373,13 @@ export function replaceSection(body: string, heading: string, content: string): 
     const extra = topLevelHeadings(content);
     if (extra.length > 0) {
       throw new BundleError(
-        `replace_section: content contains top-level section(s) ${JSON.stringify(extra)} — this call appends only "${normalized}". Pass single-section content, or use replace_body for a multi-section restructure.`,
+        `replace_section: content contains top-level section(s) ${JSON.stringify(extra)} — this call appends only "${normalizedHeading}". Pass single-section content, or use replace_body for a multi-section restructure.`,
         "MULTI_SECTION_CONTENT"
       );
     }
+    // When appending, always write the heading at column zero (H1 level 1)
     const suffix = body.trim().length > 0 ? "\n\n" : "";
-    return `${body.trimEnd()}${suffix}# ${normalized}\n\n${content.trim()}\n`;
+    return `${body.trimEnd()}${suffix}# ${normalizedHeading}\n\n${content.trim()}\n`;
   }
   const matchedLevel = level(lines[start]);
   let end = lines.length;
