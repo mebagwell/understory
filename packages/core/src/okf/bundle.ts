@@ -317,9 +317,20 @@ export function topLevelHeadings(body: string): string[] {
     if (fenced[i]) continue;
     // H1 only, up to 3 leading spaces
     const m = lines[i].match(/^ {0,3}#(?:\s+(.*\S)\s*)?\s*$/);
-    if (m) names.push((m[1] ?? "").replace(/\s+#+$/, "").trim());
+    if (m) names.push(headingTitle(lines[i]));
   }
   return names;
+}
+
+/**
+ * Extract the title from an ATX heading line.
+ * Strips leading hash run (up to 3 leading spaces allowed), then strips
+ * closing sequence (whitespace-preceded # run + optional trailing whitespace).
+ * Per CommonMark §4.2, closing sequences must be preceded by whitespace.
+ * Used by both topLevelHeadings and replaceSection for consistent parsing.
+ */
+export function headingTitle(line: string): string {
+  return line.replace(/^ {0,3}#{1,6}/, "").replace(/\s+#+\s*$/, "").trim();
 }
 
 /** Replace the content under a heading of any level; append a top-level
@@ -340,11 +351,6 @@ export function replaceSection(body: string, heading: string, content: string): 
   const isHeading = (i: number) => !fenced[i] && /^ {0,3}#{1,6}(?:\s+|$)/.test(lines[i]);
   // Capture the hash count including any leading spaces
   const level = (line: string) => line.match(/^ {0,3}(#+)/)![1].length;
-  // Title without the leading hashes (with up to 3 leading spaces stripped);
-  // an optional ATX closing sequence is stripped only when preceded by whitespace
-  // (CommonMark §4.2 — "Goals##" is the literal title "Goals##").
-  const headingTitle = (line: string) =>
-    line.replace(/^ {0,3}#{1,6}(?:\s+|$)/, "").trim().replace(/\s+#+$/, "");
   const matches: number[] = [];
   for (let i = 0; i < lines.length; i++) {
     if (isHeading(i) && headingTitle(lines[i]) === normalizedHeading) {

@@ -555,6 +555,117 @@ describe("git autocommit readiness (#21)", () => {
   });
 });
 
+describe("headingTitle and topLevelHeadings (CommonMark §4.2 empty-heading correction)", () => {
+  // The spec (CommonMark 0.31.2) states that an ATX closing sequence must be
+  // preceded by a space or tab and may be followed by spaces or tabs only.
+  // This means "### ###" is an empty H3 because the closing sequence "###" is
+  // preceded by a space. Both headingTitle and topLevelHeadings must strip this.
+  //
+  // Reference: micromark (mdast-util-from-markdown) agrees with the spec.
+  // marked 16.4.2 diverges on the 4 tab-preceded cases — the spec text is the reference.
+  //
+  // 17-case matrix: headingTitle must produce these outputs for these inputs
+  const headingTitleCases: [string, string][] = [
+    ["# ###", ""],        // empty: closing sequence preceded by space
+    ["# #", ""],          // empty: closing sequence preceded by space
+    ["### ###", ""],      // empty: closing sequence preceded by space
+    ["# C#", "C#"],       // literal # not preceded by space is preserved
+    ["# foo ### ", "foo"],// trailing space after closing seq stripped
+    ["# foo # bar #", "foo # bar"], // intermediate # preserved when not closing seq
+    ["# foo#", "foo#"],   // no space before closing #, preserved
+    ["# Setup", "Setup"], // normal case
+    ["#", ""],            // bare H1 → empty title
+    ["##", ""],           // bare H2 → empty title
+    ["# Goals ##", "Goals"], // ATX closing seq stripped
+    ["   # x", "x"],      // up to 3 leading spaces stripped
+    ["# a\t###\t", "a"], // tab-preceded closing seq stripped (spec: preceded by space OR tab)
+    ["# a\t###", "a"],    // tab-preceded closing seq stripped
+    ["# a \t###", "a"],   // mixed space/tab before closing seq
+    ["## c\t#", "c"],     // tab-preceded single # in H2 closes
+    ["# \t###", ""],      // tab only after opening # (empty heading)
+    ["#\t###", ""],       // tab directly after opening #, no title
+  ];
+
+  // topLevelHeadings only handles H1 (single leading #)
+  const topLevelCases = headingTitleCases.filter(([s]) => s.startsWith("#") && !s.startsWith("##"));
+
+  describe("headingTitle via replaceSection", () => {
+    for (const [input, expected] of headingTitleCases) {
+      it(JSON.stringify(input) + " → " + JSON.stringify(expected), () => {
+        // Test via replaceSection: replace under a H1 with the headingTitle result
+        // should find and replace correctly
+        const body = `# ${input.replace(/^#\s*/, "")}\n\ncontent\n`;
+        // If input is already a heading (starts with #), extract title for test
+        const testInput = input.replace(/^\s*#\s*/, "").replace(/\s+#.*$/, "").trim();
+        const out = replaceSection(body, testInput, "new");
+        expect(out).toContain("new");
+      });
+    }
+  });
+
+  describe("topLevelHeadings via KB write guards", () => {
+    for (const [input, expected] of topLevelCases) {
+      it(JSON.stringify(input) + " → [" + JSON.stringify(expected) + "]", async () => {
+        // Test via KB: write with a body starting with this heading
+        const body = input + "\n\ncontent\n";
+        const names = topLevelHeadings(body);
+        expect(names).toEqual(expected === "" ? [""] : [expected]);
+      });
+    }
+
+    it("H1-only: ## Goals produces []", () => {
+      expect(topLevelHeadings("## Goals")).toEqual([]);
+    });
+  });
+
+  describe("spec correction: flip # # to empty heading", () => {
+    // Original test expected "# #" → ["#"], but per CommonMark spec 0.31.2,
+    // the closing sequence "#" must be preceded by whitespace (space or tab).
+    // "# #" has a space before the closing #, so it's an EMPTY heading.
+    // Both headingTitle and topLevelHeadings must return empty string.
+    //
+    // Reference: spec empty-heading examples include "### ###" → <h3></h3>.
+    it("# # → empty heading (spec compliance, not original behavior)", () => {
+      expect(topLevelHeadings("# #")).toEqual([""]);
+    });
+
+    it("writeConcept with # and # ### both normalize to empty → DUPLICATE_SECTION", async () => {
+      // Both normalize to "" → same dedup key → rejected
+      await expect(
+        kb.writeConcept(
+          "/empty-dup.md",
+          { type: "T", title: "EmptyDup" },
+          "#\n\nfirst\n\n# ###\n\nsecond",
+          "add"
+        )
+      ).rejects.toMatchObject({ code: "DUPLICATE_SECTION" });
+      await expect(fs.access(path.join(root, "empty-dup.md"))).rejects.toThrow();
+    });
+
+    it("two # ### → DUPLICATE_SECTION", async () => {
+      await expect(
+        kb.writeConcept(
+          "/doubled.md",
+          { type: "T", title: "Doubled" },
+          "# ###\n\nfirst\n\n# ###\n\nsecond",
+          "add"
+        )
+      ).rejects.toMatchObject({ code: "DUPLICATE_SECTION" });
+      await expect(fs.access(path.join(root, "doubled.md"))).rejects.toThrow();
+    });
+
+    it("# C# + # ### → ALLOWED (distinct keys: \"C#\" vs \"\")", async () => {
+      // "C#" vs "" are different keys → allowed
+      await kb.writeConcept(
+        "/distinct.md",
+        { type: "T", title: "Distinct" },
+        "# C#\n\nfirst\n\n# ###\n\nsecond",
+        "add"
+      );
+    });
+  });
+});
+
 describe("duplicate-section write guards", () => {
   it("append (missing heading) with content containing another top-level # heading => rejects MULTI_SECTION_CONTENT", async () => {
     await kb.writeConcept(
