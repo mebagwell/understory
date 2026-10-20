@@ -569,4 +569,29 @@ describe("duplicate-section write guards", () => {
     expect(out.body).toBe("body\n\n# New\n\ncontent\n");
     expect(out.body.split("\n").filter((l) => l.trim() === "# New").length).toBe(1);
   });
+
+  describe("topLevelHeadings fence classification", () => {
+    it("does not treat # line inside backtick fence (after tilde line) as a top-level heading", () => {
+      // A backtick-opened fence that contains a # line after a tilde line.
+      // The naive toggle would close the fence on the tilde line, then reopen on backticks,
+      // making # Phantom appear outside any fence (false positive).
+      // fencedLines correctly keeps # Phantom marked as inside because the tilde does not close the backtick fence.
+      const body = ["\`\`\`\`", "# Ghost", "~~~", "# Phantom", "\`\`\`\`"].join("\n");
+      expect(topLevelHeadings(body)).toEqual([]);
+    });
+
+    it("still detects a real top-level heading outside any fence", () => {
+      expect(topLevelHeadings("# Real")).toEqual(["Real"]);
+    });
+  });
+
+  describe("topLevelHeadings trailing # handling", () => {
+    it("preserves literal trailing # (no preceding whitespace)", () => {
+      expect(topLevelHeadings("# C#")).toEqual(["C#"]);
+    });
+
+    it("strips ATX closing sequence with preceding whitespace", () => {
+      expect(topLevelHeadings("# Section ##")).toEqual(["Section"]);
+    });
+  });
 });

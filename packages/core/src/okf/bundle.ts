@@ -310,15 +310,12 @@ export class Bundle {
  */
 export function topLevelHeadings(body: string): string[] {
   const names: string[] = [];
-  let inFence = false;
-  for (const line of body.split("\n")) {
-    if (/^\s*(`{3,}|~{3,})/.test(line)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
-    const m = line.match(/^#\s+(.*\S)\s*$/);
-    if (m) names.push(m[1].replace(/#+\s*$/, "").trim());
+  const lines = body.split("\n");
+  const fenced = fencedLines(lines);
+  for (let i = 0; i < lines.length; i++) {
+    if (fenced[i]) continue;
+    const m = lines[i].match(/^#\s+(.*\S)\s*$/);
+    if (m) names.push(m[1].replace(/\s+#+$/, "").trim());
   }
   return names;
 }
